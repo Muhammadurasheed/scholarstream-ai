@@ -108,7 +108,7 @@ export function useRealtimeOpportunities() {
 
                 setNewOpportunitiesCount((count) => count + 1);
 
-                if (message.opportunity.priority_level === 'URGENT' || message.opportunity.priority_level === 'urgent') {
+                if (message.opportunity.priority_level?.toLowerCase() === 'urgent') {
                   toast({
                     title: '🚨 Urgent Opportunity Discovered!',
                     description: `${message.opportunity.name} - Deadline approaching!`,

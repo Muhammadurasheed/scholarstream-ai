@@ -43,6 +43,9 @@ class ChatService:
             # Check for Emergency Mode
             is_emergency = self._detect_emergency_mode(message)
             
+            # FIX: Detect if user wants to search for opportunities
+            needs_search = self._detect_search_intent(message)
+            
             opportunities = []
             thinking_process = []
             search_stats = None

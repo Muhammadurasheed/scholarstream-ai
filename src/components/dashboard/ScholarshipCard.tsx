@@ -120,10 +120,14 @@ export const ScholarshipCard = ({
         </div>
       </div>
 
-      {/* Amount Row */}
+      {/* Amount Row - Handle zero/missing amounts gracefully */}
       <div className="flex items-baseline gap-2 mb-3">
-        <span className="text-xl font-bold text-success">{formatCurrency(scholarship.amount)}</span>
-        <span className="text-xs text-muted-foreground truncate">{scholarship.amount_display}</span>
+        <span className="text-xl font-bold text-success">
+          {scholarship.amount > 0 ? formatCurrency(scholarship.amount) : 'Varies'}
+        </span>
+        {scholarship.amount_display && scholarship.amount_display !== formatCurrency(scholarship.amount) && (
+          <span className="text-xs text-muted-foreground truncate">{scholarship.amount_display}</span>
+        )}
       </div>
 
       {/* Deadline Row */}
@@ -153,27 +157,31 @@ export const ScholarshipCard = ({
 
       {/* Metadata Row */}
       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground mb-4 mt-auto">
-        <div className="flex items-center gap-1">
-          <Clock className="h-3 w-3" />
-          <span>{scholarship.estimated_time}</span>
-        </div>
-        <Badge
-          variant="outline"
-          className={cn('text-xs px-1.5 py-0', getCompetitionBadgeColor(scholarship.competition_level))}
-        >
-          {scholarship.competition_level}
-        </Badge>
-        <span className="font-medium text-success">
-          {(!scholarship.expected_value || isNaN(scholarship.expected_value))
-            ? 'Value TBD'
-            : `${formatCurrency(scholarship.expected_value)}/hr`}
-        </span>
+        {scholarship.estimated_time && (
+          <div className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            <span>{scholarship.estimated_time}</span>
+          </div>
+        )}
+        {scholarship.competition_level && (
+          <Badge
+            variant="outline"
+            className={cn('text-xs px-1.5 py-0', getCompetitionBadgeColor(scholarship.competition_level))}
+          >
+            {scholarship.competition_level}
+          </Badge>
+        )}
+        {scholarship.expected_value && scholarship.expected_value > 0 && (
+          <span className="font-medium text-success">
+            {formatCurrency(scholarship.expected_value)}/hr
+          </span>
+        )}
       </div>
 
       {/* Match Score + Location */}
       <div className="flex items-center justify-between mb-4">
-        <Badge className={cn('text-xs', getMatchTierColor(scholarship.match_tier))}>
-          {scholarship.match_score}% Match
+        <Badge className={cn('text-xs', getMatchTierColor(scholarship.match_tier || 'potential'))}>
+          {(scholarship.match_score || 0)}% Match
         </Badge>
         {scholarship.eligibility?.states && (scholarship.eligibility.states || []).length > 0 && (
           <div className="flex items-center gap-1 text-xs text-muted-foreground">

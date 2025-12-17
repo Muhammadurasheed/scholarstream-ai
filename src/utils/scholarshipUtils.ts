@@ -39,38 +39,44 @@ export const getDeadlineInfo = (deadline: string) => {
   return { urgency, color, formattedDate, countdown, daysUntil };
 };
 
-export const matchTierLabels: Record<MatchTier, string> = {
+export const matchTierLabels: Record<string, string> = {
   excellent: 'Excellent Match',
   great: 'Great Match',
   good: 'Good Match',
-  potential: 'Potential Match'
+  fair: 'Fair Match',
+  potential: 'Potential Match',
+  poor: 'Potential Match'
 };
 
-export const getMatchTierColor = (tier: MatchTier): string => {
-  const colors: Record<MatchTier, string> = {
+export const getMatchTierColor = (tier: MatchTier | string | undefined): string => {
+  const tierLower = (tier || 'potential').toLowerCase();
+  const colors: Record<string, string> = {
     excellent: 'bg-success text-success-foreground',
     great: 'bg-primary text-primary-foreground',
-    good: 'bg-warning text-warning-foreground',
+    good: 'bg-primary text-primary-foreground',
+    fair: 'bg-warning text-warning-foreground',
     potential: 'bg-muted text-muted-foreground',
+    poor: 'bg-muted text-muted-foreground',
   };
-  return colors[tier];
+  return colors[tierLower] || colors.potential;
 };
 
-export const priorityLabels: Record<PriorityLevel, string> = {
+export const priorityLabels: Record<string, string> = {
   urgent: 'Urgent',
   high: 'High Priority',
   medium: 'Medium Priority',
   low: 'Low Priority'
 };
 
-export const getPriorityColor = (priority: PriorityLevel): string => {
-  const colors: Record<PriorityLevel, string> = {
+export const getPriorityColor = (priority: PriorityLevel | string | undefined): string => {
+  const priorityLower = (priority || 'low').toLowerCase();
+  const colors: Record<string, string> = {
     urgent: 'border-l-4 border-danger',
     high: 'border-l-4 border-warning',
     medium: 'border-l-4 border-info',
     low: '',
   };
-  return colors[priority];
+  return colors[priorityLower] || '';
 };
 
 export const calculateDaysUntilDeadline = (deadline: string): number => {
