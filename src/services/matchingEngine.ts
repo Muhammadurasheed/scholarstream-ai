@@ -320,13 +320,33 @@ export class OpportunityMatchingEngine {
 
   /**
    * Rank and filter opportunities by match score
+   * Adds match_tier and priority_level based on calculated scores
    */
   rankOpportunities(opportunities: Scholarship[], profile: UserProfile): Scholarship[] {
     const scored = opportunities.map(opp => {
       const matchData = this.calculateMatchScore(opp, profile);
+      const matchScore = matchData.total;
+      
+      // Determine match tier based on score
+      let matchTier: 'excellent' | 'good' | 'potential' | 'low';
+      if (matchScore >= 85) matchTier = 'excellent';
+      else if (matchScore >= 70) matchTier = 'good';
+      else if (matchScore >= 50) matchTier = 'potential';
+      else matchTier = 'low';
+      
+      // Determine priority based on deadline urgency + match score
+      const daysUntil = this.getDaysUntilDeadline(opp.deadline);
+      let priorityLevel: 'urgent' | 'high' | 'medium' | 'low';
+      if (daysUntil <= 7 && matchScore >= 60) priorityLevel = 'urgent';
+      else if (daysUntil <= 14 || matchScore >= 80) priorityLevel = 'high';
+      else if (daysUntil <= 30 || matchScore >= 60) priorityLevel = 'medium';
+      else priorityLevel = 'low';
+      
       return {
         ...opp,
-        match_score: matchData.total,
+        match_score: matchScore,
+        match_tier: matchTier,
+        priority_level: priorityLevel,
         match_explanation: matchData.explanation
       };
     });
@@ -334,8 +354,11 @@ export class OpportunityMatchingEngine {
     // Filter out very poor matches (< 30%) and expired (score 0)
     const filtered = scored.filter(opp => opp.match_score >= 30);
 
-    // Sort by match score descending
-    return filtered.sort((a, b) => b.match_score - a.match_score);
+    // Sort by match score descending, then by deadline ascending
+    return filtered.sort((a, b) => {
+      if (b.match_score !== a.match_score) return b.match_score - a.match_score;
+      return this.getDaysUntilDeadline(a.deadline) - this.getDaysUntilDeadline(b.deadline);
+    });
   }
 }
 

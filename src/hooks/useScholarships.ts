@@ -31,17 +31,18 @@ export const useScholarships = () => {
 
   const scholarships = matchedData?.scholarships || [];
 
-  // Calculate stats from cached data
+  // Calculate stats from real data (no mock fallbacks)
   const stats: DashboardStats = {
     opportunities_matched: scholarships.length,
-    total_value: matchedData?.total_value || 0,
+    total_value: scholarships.reduce((sum, s) => sum + (s.amount || 0), 0),
     urgent_deadlines: scholarships.filter(s => {
-      const daysUntil = Math.floor(
-        (new Date(s.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-      );
+      if (!s.deadline) return false;
+      const deadline = new Date(s.deadline);
+      if (isNaN(deadline.getTime())) return false;
+      const daysUntil = Math.floor((deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
       return daysUntil < 7 && daysUntil >= 0;
     }).length,
-    applications_started: 0, // TODO: Fetch this from applications endpoint
+    applications_started: 0, // Will be populated from applications query
   };
 
   // 2. Mutation: Save/Unsave Scholarship

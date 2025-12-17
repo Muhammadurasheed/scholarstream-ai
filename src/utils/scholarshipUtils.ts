@@ -45,6 +45,7 @@ export const matchTierLabels: Record<string, string> = {
   good: 'Good Match',
   fair: 'Fair Match',
   potential: 'Potential Match',
+  low: 'Low Match',
   poor: 'Potential Match'
 };
 
@@ -56,6 +57,7 @@ export const getMatchTierColor = (tier: MatchTier | string | undefined): string 
     good: 'bg-primary text-primary-foreground',
     fair: 'bg-warning text-warning-foreground',
     potential: 'bg-muted text-muted-foreground',
+    low: 'bg-muted/50 text-muted-foreground',
     poor: 'bg-muted text-muted-foreground',
   };
   return colors[tierLower] || colors.potential;
