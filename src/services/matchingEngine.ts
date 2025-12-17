@@ -1,0 +1,342 @@
+import { Scholarship, UserProfile } from '@/types/scholarship';
+import { differenceInDays } from 'date-fns';
+
+/**
+ * FAANG-Level Matching Engine
+ * Multi-factor scoring system for hyper-personalized opportunity matching
+ */
+
+interface MatchScoreBreakdown {
+  eligibility: number;
+  interests: number;
+  location: number;
+  urgency: number;
+  value: number;
+  effort: number;
+  total: number;
+  explanation: string;
+}
+
+export class OpportunityMatchingEngine {
+  private readonly weights = {
+    eligibility: 30,  // Must meet basic requirements
+    interests: 20,    // Alignment with user interests
+    location: 15,     // Geographic relevance
+    urgency: 15,      // Time-sensitive needs
+    value: 10,        // Financial impact
+    effort: 10        // Time to complete vs availability
+  };
+
+  /**
+   * Calculate comprehensive match score (0-100)
+   */
+  calculateMatchScore(opportunity: Scholarship, profile: UserProfile): MatchScoreBreakdown {
+    let score = 0;
+    const breakdown: Partial<MatchScoreBreakdown> = {};
+
+    // 0. STRICT EXPIRATION CHECK
+    const daysUntil = this.getDaysUntilDeadline(opportunity.deadline);
+    if (daysUntil < 0) {
+      return {
+        eligibility: 0,
+        interests: 0,
+        location: 0,
+        urgency: 0,
+        value: 0,
+        effort: 0,
+        total: 0,
+        explanation: 'Opportunity has expired'
+      };
+    }
+
+    // 1. ELIGIBILITY SCORE (30 points) - HARD REQUIREMENTS
+    const eligibilityScore = this.scoreEligibility(opportunity, profile);
+
+    // SOFTENED GATE: Only penalize, don't hard reject unless 0
+    if (eligibilityScore === 0) {
+      return {
+        eligibility: 0,
+        interests: 0,
+        location: 0,
+        urgency: 0,
+        value: 0,
+        effort: 0,
+        total: 0,
+        explanation: 'Does not meet strict eligibility'
+      };
+    }
+
+    breakdown.eligibility = Math.round(eligibilityScore * this.weights.eligibility);
+    score += breakdown.eligibility;
+
+    // 2. INTERESTS ALIGNMENT (20 points)
+    const interestScore = this.scoreInterests(opportunity, profile);
+    breakdown.interests = Math.round(interestScore * this.weights.interests);
+    score += breakdown.interests;
+
+    // 3. LOCATION MATCH (15 points)
+    const locationScore = this.scoreLocation(opportunity, profile);
+    breakdown.location = Math.round(locationScore * this.weights.location);
+    score += breakdown.location;
+
+    // 4. URGENCY MATCH (15 points)
+    const urgencyScore = this.scoreUrgency(opportunity, profile);
+    breakdown.urgency = Math.round(urgencyScore * this.weights.urgency);
+    score += breakdown.urgency;
+
+    // 5. VALUE SCORE (10 points)
+    const valueScore = this.scoreValue(opportunity, profile);
+    breakdown.value = Math.round(valueScore * this.weights.value);
+    score += breakdown.value;
+
+    // 6. EFFORT FEASIBILITY (10 points)
+    const effortScore = this.scoreEffort(opportunity, profile);
+    breakdown.effort = Math.round(effortScore * this.weights.effort);
+    score += breakdown.effort;
+
+    breakdown.total = Math.round(score);
+    breakdown.explanation = this.generateExplanation(breakdown as MatchScoreBreakdown, opportunity, profile);
+
+    return breakdown as MatchScoreBreakdown;
+  }
+
+  private getDaysUntilDeadline(deadline: string): number {
+    try {
+      if (!deadline) return 365;
+      const date = new Date(deadline);
+      if (isNaN(date.getTime())) return 365;
+      return differenceInDays(date, new Date());
+    } catch (e) {
+      return 365;
+    }
+  }
+
+  private scoreEligibility(opp: Scholarship, profile: any): number {
+    let score = 1.0;
+
+    // Grade level matching
+    const academicStatusMatch = {
+      'High School': ['high school', 'freshman', 'sophomore', 'junior', 'senior', '12th grade', '11th grade'],
+      'Undergraduate': ['undergraduate', 'college', 'university', 'bachelor'],
+      'Graduate': ['graduate', 'masters', 'phd', 'doctoral'],
+      'Postgraduate': ['postgraduate', 'post-doctoral']
+    };
+
+    const userStatus = profile.academicStatus || profile.academic_status || '';
+    const oppTags = (opp.tags || []).map(t => t.toLowerCase());
+    const oppEligibility = opp.eligibility?.grades_eligible || [];
+
+    // Check explicit eligibility field first
+    if (oppEligibility.length > 0) {
+      const isEligible = oppEligibility.some((grade: string) =>
+        userStatus.toLowerCase().includes(grade.toLowerCase())
+      );
+      if (!isEligible) score *= 0.5;
+    } else {
+      // Fallback to tags
+      const expectedTags = academicStatusMatch[userStatus as keyof typeof academicStatusMatch] || [];
+      const hasMatch = expectedTags.some(tag => oppTags.some(oppTag => oppTag.includes(tag)));
+
+      if (!hasMatch && oppTags.length > 0) {
+        score *= 0.7;
+      }
+    }
+
+    return score;
+  }
+
+  private scoreInterests(opp: Scholarship, profile: any): number {
+    const interests = profile.interests || [];
+    const oppTags = (opp.tags || []).map(t => t.toLowerCase());
+
+    if (!interests.length || !oppTags.length) {
+      return 0.5; // Neutral if no data
+    }
+
+    const userInterests = new Set(interests.map((i: string) => i.toLowerCase()));
+    const oppTagsSet = new Set(oppTags);
+
+    // Calculate Jaccard similarity
+    const intersection = Array.from(userInterests).filter((i: string) =>
+      Array.from(oppTagsSet).some((t: string) => t.includes(i) || i.includes(t))
+    ).length;
+
+    const union = userInterests.size + oppTagsSet.size - intersection;
+
+    if (union === 0) return 0.5;
+
+    let similarity = intersection / union;
+
+    // Bonus for major match
+    const major = (profile.major || '').toLowerCase();
+    if (major && oppTagsSet.has(major)) {
+      similarity += 0.3;
+    }
+
+    return Math.min(similarity, 1.0);
+  }
+
+  private scoreLocation(opp: Scholarship, profile: any): number {
+    const userCountry = (profile.country || '').toLowerCase();
+    const userState = (profile.state || '').toLowerCase();
+
+    // If no location data, neutral score
+    if (!userCountry && !userState) return 0.5;
+
+    const oppStates = (opp.eligibility?.states || []).map((s: string) => s.toLowerCase());
+    const oppCitizenship = (opp.eligibility?.citizenship || '').toLowerCase();
+    const oppTags = (opp.tags || []).map(t => t.toLowerCase());
+
+    // 1. Local Match (State/City) - Highest Priority
+    if (userState && oppStates.some(s => s.includes(userState))) {
+      return 1.0;
+    }
+
+    // 2. National Match
+    if (userCountry) {
+      // Explicit citizenship match
+      if (oppCitizenship && oppCitizenship.includes(userCountry)) {
+        return 0.9;
+      }
+      // Implicit match (no restrictions or 'US' tag for US students)
+      if ((!oppCitizenship || oppCitizenship === 'any') &&
+        (userCountry === 'united states' || userCountry === 'us')) {
+        return 0.8;
+      }
+    }
+
+    // 3. International / Global
+    if (oppCitizenship.includes('international') || oppTags.includes('international')) {
+      return 0.7;
+    }
+
+    return 0.5; // Default neutral
+  }
+
+  private scoreUrgency(opp: Scholarship, profile: any): number {
+    const daysUntil = this.getDaysUntilDeadline(opp.deadline);
+    const motivation = profile.motivation || [];
+
+    // User needs urgent funding
+    if (motivation.includes('Urgent Funding')) {
+      if (daysUntil <= 7) return 1.0;
+      if (daysUntil <= 30) return 0.7;
+      return 0.3;
+    }
+
+    // User planning ahead
+    if (motivation.includes('Long-term Planning')) {
+      if (daysUntil > 60) return 1.0;
+      if (daysUntil > 30) return 0.7;
+      return 0.4;
+    }
+
+    // Default: prefer not-too-urgent, not-too-far
+    if (daysUntil >= 7 && daysUntil <= 60) {
+      return 0.8;
+    }
+    return 0.5;
+  }
+
+  private scoreValue(opp: Scholarship, profile: any): number {
+    const financialNeed = profile.financialNeed || profile.financial_need || 0;
+    if (!financialNeed) return 0.5;
+
+    const valueRatio = Math.min(opp.amount / financialNeed, 1.0);
+
+    // Prefer opportunities that cover significant portion of need
+    if (valueRatio >= 0.8) return 1.0;
+    if (valueRatio >= 0.5) return 0.8;
+    if (valueRatio >= 0.2) return 0.6;
+    return 0.4;
+  }
+
+  private scoreEffort(opp: Scholarship, profile: any): number {
+    const estimatedHours = this.estimateEffort(opp);
+    const timeCommitment = profile.timeCommitment || profile.time_commitment || 'Flexible';
+
+    // Map time commitments
+    if (typeof timeCommitment === 'string' && timeCommitment.includes('few hours')) {
+      if (estimatedHours <= 5) return 1.0;
+      if (estimatedHours <= 10) return 0.6;
+      return 0.3;
+    }
+
+    if (typeof timeCommitment === 'string' && timeCommitment.includes('Weekends')) {
+      if (estimatedHours >= 10 && estimatedHours <= 48) return 1.0;
+      return 0.5;
+    }
+
+    // Flexible/ongoing
+    return 0.8; // Neutral
+  }
+
+  private estimateEffort(opp: Scholarship): number {
+    let hours = 2; // Base application time
+
+    // Check tags for complexity indicators
+    const tags = (opp.tags || []).map(t => t.toLowerCase());
+
+    if (tags.some(t => ['essay', 'statement'].includes(t))) {
+      hours += 3; // Essay takes time
+    }
+
+    if (tags.some(t => ['recommendation', 'letter'].includes(t))) {
+      hours += 1;
+    }
+
+    if (tags.some(t => ['transcript', 'documents'].includes(t))) {
+      hours += 0.5;
+    }
+
+    return hours;
+  }
+
+  private generateExplanation(breakdown: MatchScoreBreakdown, opp: Scholarship, profile: any): string {
+    const reasons: string[] = [];
+
+    if (breakdown.location > 10) {
+      reasons.push('Great location match');
+    }
+    if (breakdown.interests > 12) {
+      reasons.push('Aligns with interests');
+    }
+    if (breakdown.urgency > 10) {
+      reasons.push('Fits your timeline');
+    }
+    if (breakdown.value > 8) {
+      reasons.push('High value');
+    }
+    if (breakdown.effort > 7) {
+      reasons.push('Feasible workload');
+    }
+
+    if (reasons.length === 0) {
+      return 'General match based on your profile';
+    }
+
+    return reasons.slice(0, 3).join(' • ');
+  }
+
+  /**
+   * Rank and filter opportunities by match score
+   */
+  rankOpportunities(opportunities: Scholarship[], profile: UserProfile): Scholarship[] {
+    const scored = opportunities.map(opp => {
+      const matchData = this.calculateMatchScore(opp, profile);
+      return {
+        ...opp,
+        match_score: matchData.total,
+        match_explanation: matchData.explanation
+      };
+    });
+
+    // Filter out very poor matches (< 30%) and expired (score 0)
+    const filtered = scored.filter(opp => opp.match_score >= 30);
+
+    // Sort by match score descending
+    return filtered.sort((a, b) => b.match_score - a.match_score);
+  }
+}
+
+export const matchingEngine = new OpportunityMatchingEngine();

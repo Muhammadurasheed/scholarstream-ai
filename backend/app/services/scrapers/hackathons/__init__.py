@@ -1,0 +1,1 @@
+"""Hackathons scrapers package"""

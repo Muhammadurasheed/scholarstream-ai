@@ -1,0 +1,1 @@
+"""Competitions scrapers package"""
