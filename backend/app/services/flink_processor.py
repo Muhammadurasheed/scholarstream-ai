@@ -10,23 +10,42 @@ from app.config import settings
 logger = structlog.get_logger()
 
 
+def normalize_text(text: str) -> str:
+    """Normalize text for consistent hashing"""
+    if not text:
+        return ""
+    return " ".join(text.lower().strip().split())
+
+
+def generate_content_fingerprint(data: Dict[str, Any]) -> str:
+    """
+    Generate a fingerprint based on core content for near-duplicate detection.
+    Catches opportunities that are essentially the same but from different URLs.
+    """
+    title = normalize_text(data.get('name', data.get('title', '')))
+    org = normalize_text(data.get('organization', data.get('org', '')))
+    amount = str(data.get('amount', 0))
+    deadline = data.get('deadline', '')
+    
+    content = f"{title}|{org}|{amount}|{deadline}"
+    return hashlib.md5(content.encode()).hexdigest()
+
+
 def generate_opportunity_id(opportunity: Dict[str, Any]) -> str:
     """
     Generate a STABLE, DETERMINISTIC ID for deduplication.
-    Uses source_url as primary key, falls back to title+org hash.
+    Uses URL + normalized title + org for maximum stability.
     """
     url = opportunity.get('url') or opportunity.get('source_url') or ''
+    title = normalize_text(opportunity.get('name') or opportunity.get('title') or '')
+    org = normalize_text(opportunity.get('organization') or '')
     
-    if url:
-        # URL-based ID (preferred - most stable)
-        return hashlib.sha256(url.encode()).hexdigest()[:24]
+    # Create composite key
+    composite = f"{url}|{title}|{org}"
     
-    # Fallback: Hash of title + organization
-    title = (opportunity.get('name') or opportunity.get('title') or '').lower().strip()
-    org = (opportunity.get('organization') or '').lower().strip()
-    combined = f"{title}|{org}"
-    
-    return hashlib.sha256(combined.encode()).hexdigest()[:24]
+    # Generate stable hash with prefix
+    hash_digest = hashlib.sha256(composite.encode()).hexdigest()[:16]
+    return f"opp_{hash_digest}"
 
 
 class CortexFlinkProcessor:

@@ -7,8 +7,8 @@ import { FinancialImpactWidget } from '@/components/dashboard/FinancialImpactWid
 import { QuickActionsWidget } from '@/components/dashboard/QuickActionsWidget';
 import { ActivityFeedWidget } from '@/components/dashboard/ActivityFeedWidget';
 import { PriorityAlertsSection } from '@/components/dashboard/PriorityAlertsSection';
-import { OpportunityGrid } from '@/components/dashboard/OpportunityGrid';
-import { PaginatedOpportunitySection } from '@/components/dashboard/PaginatedOpportunitySection';
+import { PaginatedGrid } from '@/components/dashboard/PaginatedGrid';
+import { SimpleOpportunityGrid } from '@/components/dashboard/SimpleOpportunityGrid';
 import { MobileBottomNav } from '@/components/dashboard/MobileBottomNav';
 import { FloatingChatAssistant } from '@/components/dashboard/FloatingChatAssistant';
 import { ViewToggle } from '@/components/dashboard/ViewToggle';
@@ -434,7 +434,7 @@ const Dashboard = () => {
                     </p>
                   </div>
                 </div>
-                <OpportunityGrid opportunities={groupedOpportunities.highMatch.slice(0, 4)} view="grid" />
+                <SimpleOpportunityGrid opportunities={groupedOpportunities.highMatch.slice(0, 4)} view="grid" />
               </section>
             )}
 
@@ -492,15 +492,12 @@ const Dashboard = () => {
                         </p>
                       </div>
                     ) : (
-                      view === 'grid' ? (
-                        <OpportunityGrid opportunities={displayOpportunities} />
-                      ) : (
-                        <PaginatedOpportunitySection
-                          opportunities={displayOpportunities}
-                          itemsPerPage={10}
-                          view="list"
-                        />
-                      )
+                      <PaginatedGrid 
+                        opportunities={displayOpportunities} 
+                        view={view}
+                        itemsPerPage={12}
+                        loading={loading && scholarships.length === 0}
+                      />
                     )}
                   </div>
                 )}
