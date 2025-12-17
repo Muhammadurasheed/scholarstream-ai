@@ -36,11 +36,8 @@ class OpportunityScraperService:
             
         logger.info("Starting COMPREHENSIVE multi-opportunity discovery")
         
-        # DISABLE LEGACY SCRAPING
-        return []
-
         # Use registry to scrape all sources in parallel
-        # all_opportunities = await self.registry.scrape_all(user_profile)
+        all_opportunities = await self.registry.scrape_all(user_profile)
         
         # Validate URLs to ensure apply links work
         logger.info("Validating opportunity URLs")
