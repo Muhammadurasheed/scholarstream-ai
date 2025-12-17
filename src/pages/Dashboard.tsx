@@ -129,15 +129,24 @@ const Dashboard = () => {
     // Merge real-time and cached scholarships
     const allScholarships = [...realtimeOpportunities, ...scholarships];
 
-    {/* Deduplicate by content (URL or Title) since IDs might initially be unstable timestamps */ }
+    // Deduplicate by content (URL or Title) since IDs might initially be unstable timestamps
     const uniqueScholarships = Array.from(
       new Map(allScholarships.map(s => [s.source_url || s.name, s])).values()
     );
 
-    if (!userProfile || uniqueScholarships.length === 0) return uniqueScholarships;
-
-    // Use the matching engine to rank opportunities
-    return matchingEngine.rankOpportunities(uniqueScholarships, userProfile as any);
+    if (uniqueScholarships.length === 0) return uniqueScholarships;
+    
+    // Always apply matching engine to ensure scores are calculated
+    if (userProfile) {
+      return matchingEngine.rankOpportunities(uniqueScholarships, userProfile as any);
+    }
+    
+    // For users without profile, assign a default score
+    return uniqueScholarships.map(s => ({
+      ...s,
+      match_score: s.match_score || 50, // Default 50% for unmatched
+      match_tier: s.match_tier || 'potential' as const
+    }));
   }, [scholarships, realtimeOpportunities, userProfile]);
 
   // Trigger discovery if coming from onboarding
@@ -195,6 +204,33 @@ const Dashboard = () => {
     return Array.from(unique.values());
   }, [realtimeOpportunities, scholarships]);
 
+  // Helper function to infer opportunity type from tags/description
+  const inferOpportunityType = (opp: any): 'scholarship' | 'hackathon' | 'bounty' | 'competition' => {
+    const tags = (opp.tags || []).map((t: string) => t.toLowerCase());
+    const desc = (opp.description || '').toLowerCase();
+    const name = (opp.name || '').toLowerCase();
+    const combined = `${tags.join(' ')} ${desc} ${name}`;
+    
+    // Check source_type first (if explicitly set)
+    const sourceType = (opp.source_type || '').toLowerCase();
+    if (sourceType === 'devpost' || sourceType === 'mlh') return 'hackathon';
+    if (sourceType === 'gitcoin') return 'bounty';
+    if (sourceType === 'kaggle') return 'competition';
+    
+    // Infer from content
+    if (combined.includes('hackathon') || combined.includes('hack ') || combined.includes('devpost')) {
+      return 'hackathon';
+    }
+    if (combined.includes('bounty') || combined.includes('bug bounty') || combined.includes('security') || combined.includes('gitcoin')) {
+      return 'bounty';
+    }
+    if (combined.includes('competition') || combined.includes('contest') || combined.includes('kaggle') || combined.includes('challenge')) {
+      return 'competition';
+    }
+    
+    return 'scholarship';
+  };
+
   // Smart grouping with Search & Location logic
   const groupedOpportunities = useMemo(() => {
     let filtered = allOpportunities;
@@ -221,15 +257,31 @@ const Dashboard = () => {
       filtered = sortByLocationRelevance(filtered, userProfile.country, userProfile.state);
     }
 
+    // Categorize by inferred type
+    const scholarships: typeof filtered = [];
+    const hackathons: typeof filtered = [];
+    const bounties: typeof filtered = [];
+    const competitions: typeof filtered = [];
+    
+    filtered.forEach(opp => {
+      const type = inferOpportunityType(opp);
+      switch (type) {
+        case 'hackathon': hackathons.push(opp); break;
+        case 'bounty': bounties.push(opp); break;
+        case 'competition': competitions.push(opp); break;
+        default: scholarships.push(opp);
+      }
+    });
+
     return {
       all: filtered,
-      urgent: filtered.filter(o => o.priority_level === 'URGENT' || o.priority_level === 'urgent'),
-      highMatch: filtered.filter(o => o.match_score >= 85),
+      urgent: filtered.filter(o => o.priority_level?.toLowerCase() === 'urgent'),
+      highMatch: filtered.filter(o => (o.match_score || 0) >= 85),
       byType: {
-        scholarships: filtered.filter(o => !['devpost', 'gitcoin', 'kaggle', 'mlh'].includes(o.source_type || '')),
-        hackathons: filtered.filter(o => o.source_type === 'devpost' || o.source_type === 'mlh'),
-        bounties: filtered.filter(o => o.source_type === 'gitcoin'),
-        competitions: filtered.filter(o => o.source_type === 'kaggle')
+        scholarships,
+        hackathons,
+        bounties,
+        competitions
       }
     };
   }, [allOpportunities, searchQuery, locationScope, userProfile]);

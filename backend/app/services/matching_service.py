@@ -124,41 +124,53 @@ class OpportunityMatchingService:
         return convert_to_scholarship(opp_data, user_profile)
     
     def calculate_match_score(self, opportunity: Scholarship, profile: UserProfile) -> float:
-        """Delegate to new MatchingEngine for scoring"""
-        # For sync compatibility, use a simple heuristic fallback
-        # The real vector scoring happens async in MatchingEngine
-        score = 50.0  # Base score
+        """Use PersonalizationEngine for proper scoring"""
+        from app.services.personalization_engine import personalization_engine
         
-        # Basic eligibility check
-        if opportunity.eligibility_text and profile.major:
-            if profile.major.lower() in opportunity.eligibility_text.lower():
-                score += 20
+        # Convert Scholarship to dict for personalization engine
+        opp_dict = {
+            'name': opportunity.title,
+            'description': opportunity.description or '',
+            'organization': opportunity.organization or '',
+            'tags': opportunity.tags if hasattr(opportunity, 'tags') else [],
+            'eligibility': opportunity.eligibility.model_dump() if hasattr(opportunity.eligibility, 'model_dump') else {},
+            'requirements': opportunity.requirements.model_dump() if hasattr(opportunity.requirements, 'model_dump') else {},
+        }
         
-        # Geo match
-        if profile.country and "Global" in opportunity.geo_tags:
-            score += 15
-        
-        return min(score, 100)
+        return personalization_engine.calculate_personalized_score(opp_dict, profile)
     
     def _filter_and_rank(
         self,
         opportunities: List[Scholarship],
         user_profile: UserProfile
     ) -> List[Scholarship]:
-        """Filter and rank opportunities"""
+        """Filter and rank opportunities using PersonalizationEngine"""
+        from datetime import datetime
+        
         eligible = []
+        now = datetime.now().timestamp()
         
         for opp in opportunities:
             # Skip expired
             if hasattr(opp, 'deadline_timestamp') and opp.deadline_timestamp:
-                if opp.deadline_timestamp < int(datetime.now().timestamp()):
+                if opp.deadline_timestamp < int(now):
                     continue
             
-            # Calculate score
+            # Calculate score using PersonalizationEngine
             opp.match_score = self.calculate_match_score(opp, user_profile)
             
-            if opp.match_score >= 30:
-                eligible.append(opp)
+            # Determine match tier
+            if opp.match_score >= 85:
+                opp.match_tier = "Excellent"
+            elif opp.match_score >= 70:
+                opp.match_tier = "Good"  
+            elif opp.match_score >= 55:
+                opp.match_tier = "Fair"
+            else:
+                opp.match_tier = "Poor"
+            
+            # Include all opportunities (minimum 30% ensured by personalization engine)
+            eligible.append(opp)
         
         return sorted(eligible, key=lambda x: x.match_score, reverse=True)
     

@@ -1,8 +1,8 @@
 // Scholarship Type Definitions for ScholarStream
 
 export type DeadlineType = 'rolling' | 'fixed' | 'ongoing';
-export type MatchTier = 'excellent' | 'great' | 'good' | 'potential';
-export type PriorityLevel = 'urgent' | 'high' | 'medium' | 'low';
+export type MatchTier = 'excellent' | 'great' | 'good' | 'potential' | 'Excellent' | 'Good' | 'Fair' | 'Poor';
+export type PriorityLevel = 'urgent' | 'high' | 'medium' | 'low' | 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW';
 export type CompetitionLevel = 'Low' | 'Medium' | 'High';
 export type SourceType = 'platform' | 'devpost' | 'gitcoin' | 'kaggle' | 'mlh' | 'government' | 'scholarships_com' | 'ai_discovered' | 'curated';
 
