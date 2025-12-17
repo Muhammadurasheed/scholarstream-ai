@@ -120,8 +120,12 @@ def convert_to_scholarship(opp_data: Dict[str, Any], user_profile: UserProfile) 
         except Exception:
              deadline_timestamp = int(datetime.utcnow().timestamp()) + (30 * 24 * 3600)
 
+        # Generate STABLE ID using Flink processor's hash function
+        from app.services.flink_processor import generate_opportunity_id
+        stable_id = generate_opportunity_id(opp_data)
+
         scholarship = Scholarship(
-            id=str(uuid.uuid4()),
+            id=stable_id,  # Use stable hash-based ID for deduplication
             title=_to_str(opp_data.get("name"), "Untitled Opportunity"), # Changed from name -> title
             organization=_to_str(opp_data.get("organization"), "Unknown"),
             amount=amount,

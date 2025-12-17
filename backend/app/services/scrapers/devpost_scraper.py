@@ -156,9 +156,15 @@ class DevpostScraper(BaseScraper):
                 'deadline': deadline,
                 'deadline_type': 'fixed',
                 'url': url,
+                'source_url': url,  # Frontend expects source_url
+                'source_type': 'devpost',  # Proper source type enum
                 'source': 'devpost',
                 'urgency': urgency,
                 'tags': item.get('themes', []) + ['Hackathon'],
+                # Logo extraction - Devpost API provides thumbnail
+                'logo_url': item.get('thumbnail_url') or item.get('organization', {}).get('logo_url', ''),
+                # Participants count from API
+                'participants_count': item.get('registrations_count', 0),
                 'eligibility': {
                     'students_only': False,
                     'grade_levels': [],
@@ -172,12 +178,13 @@ class DevpostScraper(BaseScraper):
                     'estimated_time': '48 hours',
                     'skills_needed': ['Coding'],
                     'team_allowed': True,
-                    'team_size_max': 4,
+                    'team_size_max': item.get('max_team_size', 4),
                     'essay_required': False
                 },
-                'description': f"{title} - {organization}. {submission_period_dates}",
+                'description': item.get('tagline', '') or f"{title} - {organization}. {submission_period_dates}",
                 'competition_level': 'Medium',
-                'discovered_at': datetime.utcnow().isoformat()
+                'discovered_at': datetime.utcnow().isoformat() + 'Z',
+                'last_verified': datetime.utcnow().isoformat() + 'Z'  # Set current time as verified
             }
         except Exception as e:
             logger.error(f"Error parsing API item: {e}", item_title=item.get('title'))

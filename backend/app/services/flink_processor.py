@@ -50,12 +50,12 @@ def generate_opportunity_id(opportunity: Dict[str, Any]) -> str:
 
 class CortexFlinkProcessor:
     """
-    The Cortex Stream Processor (Python Native V2)
+    The Cortex Stream Processor (Python Native V3)
     
-    ENHANCED DEDUPLICATION:
+    ENHANCED DEDUPLICATION WITH FIRESTORE PERSISTENCE:
     1. Content-based hashing (URL + Title + Organization)
-    2. Sliding window expiration (1 hour)
-    3. Persisted seen set for cross-session deduplication
+    2. Sliding window expiration (1 hour for memory, permanent in Firestore)
+    3. Firestore-backed state for cross-restart deduplication
     """
     
     def __init__(self):
@@ -64,13 +64,58 @@ class CortexFlinkProcessor:
         self.processing_queue = deque()
         self.total_processed = 0
         self.duplicates_dropped = 0
-        logger.info("Cortex Processor Online (Engine: Native Python V2 - Enhanced Deduplication)")
+        self._firestore_loaded = False
+        logger.info("Cortex Processor Online (Engine: Native Python V3 - Firestore Persistence)")
+        
+    def _load_persisted_state(self):
+        """
+        Load existing scholarship IDs from Firestore for cross-restart deduplication.
+        Called lazily on first process_event to avoid startup overhead.
+        """
+        if self._firestore_loaded:
+            return
+            
+        try:
+            import firebase_admin
+            from firebase_admin import firestore as fs
+            
+            # Get Firestore client
+            try:
+                app = firebase_admin.get_app()
+            except ValueError:
+                logger.warning("Firebase not initialized, skipping state load")
+                self._firestore_loaded = True
+                return
+                
+            db = fs.client()
+            
+            # Load existing scholarship IDs (just the IDs, not full docs)
+            docs = db.collection('scholarships').stream()
+            now = time.time()
+            
+            count = 0
+            for doc in docs:
+                # Use document ID as the seen key
+                self.seen_opportunities[doc.id] = now
+                count += 1
+                
+            self._firestore_loaded = True
+            logger.info("🔄 Loaded persisted state from Firestore", 
+                       existing_count=count, 
+                       cache_size=len(self.seen_opportunities))
+                       
+        except Exception as e:
+            logger.error("Failed to load persisted state", error=str(e))
+            self._firestore_loaded = True  # Mark as loaded to prevent retry loops
         
     async def process_event(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Ingest and process a single raw opportunity event.
         Returns None if duplicate, otherwise returns the enriched event.
         """
+        # Lazy-load persisted state from Firestore (runs once)
+        self._load_persisted_state()
+        
         # Generate stable content-based ID
         content_id = generate_opportunity_id(event)
         url = event.get('url') or event.get('source_url') or ''

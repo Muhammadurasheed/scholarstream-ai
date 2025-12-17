@@ -214,6 +214,7 @@ const OpportunityDetail = () => {
 
   const checkEligibility = () => {
     if (!profile) return [];
+    if (!scholarship?.eligibility) return [];
 
     const checks = [];
 
@@ -539,7 +540,7 @@ const OpportunityDetail = () => {
                 </div>
                 <div>
                   <div className="text-sm text-muted-foreground mb-1">Source Type</div>
-                  <div className="font-semibold text-foreground capitalize">{scholarship.source_type.replace('_', ' ')}</div>
+                  <div className="font-semibold text-foreground capitalize">{scholarship.source_type?.replace('_', ' ') ?? 'Unknown'}</div>
                 </div>
                 <div>
                   <div className="text-sm text-muted-foreground mb-1">Last Verified</div>
@@ -625,15 +626,15 @@ const OpportunityDetail = () => {
                       Gather transcripts, resume, and request recommendation letters
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {scholarship.requirements.transcript && (
+                      {scholarship.requirements?.transcript && (
                         <Badge variant="outline" className="text-xs">📄 Transcript</Badge>
                       )}
-                      {scholarship.requirements.resume && (
+                      {scholarship.requirements?.resume && (
                         <Badge variant="outline" className="text-xs">📝 Resume</Badge>
                       )}
-                      {scholarship.requirements.recommendation_letters > 0 && (
+                      {(scholarship.requirements?.recommendation_letters ?? 0) > 0 && (
                         <Badge variant="outline" className="text-xs">
-                          ✉️ {scholarship.requirements.recommendation_letters} Letter(s)
+                          ✉️ {scholarship.requirements?.recommendation_letters} Letter(s)
                         </Badge>
                       )}
                     </div>
@@ -647,15 +648,15 @@ const OpportunityDetail = () => {
                   <div className="flex-1">
                     <h4 className="font-semibold">Draft Essays (Week 2-3)</h4>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {scholarship.requirements.essay
-                        ? `Write ${scholarship.requirements.essay_prompts.length || 1} essay(s) - allow time for multiple drafts`
+                      {scholarship.requirements?.essay
+                        ? `Write ${scholarship.requirements?.essay_prompts?.length || 1} essay(s) - allow time for multiple drafts`
                         : 'No essays required for this opportunity ✨'}
                     </p>
-                    {scholarship.requirements.essay && scholarship.requirements.essay_prompts.length > 0 && (
+                    {scholarship.requirements?.essay && (scholarship.requirements?.essay_prompts?.length ?? 0) > 0 && (
                       <div className="mt-2 text-xs text-muted-foreground">
                         <strong>Prompts:</strong>
                         <ul className="list-disc list-inside mt-1 space-y-1">
-                          {scholarship.requirements.essay_prompts.slice(0, 2).map((prompt, idx) => (
+                          {scholarship.requirements?.essay_prompts?.slice(0, 2).map((prompt, idx) => (
                             <li key={idx}>{prompt}</li>
                           ))}
                         </ul>
@@ -675,7 +676,7 @@ const OpportunityDetail = () => {
                     </p>
                     <div className="mt-2">
                       <Badge variant="outline" className="text-xs">
-                        ⏱️ Est. Time: {scholarship.estimated_time}
+                        ⏱️ Est. Time: {scholarship.estimated_time ?? 'N/A'}
                       </Badge>
                     </div>
                   </div>
@@ -737,11 +738,11 @@ const OpportunityDetail = () => {
             <Card className="p-6">
               <h2 className="text-2xl font-bold mb-6">Application Checklist</h2>
 
-              {(!scholarship.requirements.essay &&
-                !scholarship.requirements.transcript &&
-                !scholarship.requirements.resume &&
-                scholarship.requirements.recommendation_letters === 0 &&
-                scholarship.requirements.other.length === 0) ? (
+              {(!scholarship.requirements?.essay &&
+                !scholarship.requirements?.transcript &&
+                !scholarship.requirements?.resume &&
+                (scholarship.requirements?.recommendation_letters ?? 0) === 0 &&
+                (scholarship.requirements?.other?.length ?? 0) === 0) ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <AlertTriangle className="h-12 w-12 text-warning mb-4" />
                   <h3 className="text-lg font-semibold mb-2">Requirements Not Specified</h3>
@@ -767,16 +768,16 @@ const OpportunityDetail = () => {
                     </div>
                   </div>
 
-                  {scholarship.requirements.essay && (
+                  {scholarship.requirements?.essay && (
                     <div className="flex items-start gap-3 p-4 rounded-lg border border-border">
                       <div className="shrink-0">
                         <div className="h-5 w-5 rounded border-2 border-muted-foreground" />
                       </div>
                       <div className="flex-1">
                         <div className="font-semibold text-foreground mb-2">Essay / Personal Statement</div>
-                        {scholarship.requirements.essay_prompts.length > 0 && (
+                        {(scholarship.requirements?.essay_prompts?.length ?? 0) > 0 && (
                           <div className="space-y-2 mb-2">
-                            {scholarship.requirements.essay_prompts.map((prompt, idx) => (
+                            {scholarship.requirements?.essay_prompts?.map((prompt, idx) => (
                               <p key={idx} className="text-sm text-muted-foreground italic">
                                 "{prompt}"
                               </p>
@@ -788,14 +789,14 @@ const OpportunityDetail = () => {
                     </div>
                   )}
 
-                  {scholarship.requirements.recommendation_letters > 0 && (
+                  {(scholarship.requirements?.recommendation_letters ?? 0) > 0 && (
                     <div className="flex items-start gap-3 p-4 rounded-lg border border-border">
                       <div className="shrink-0">
                         <div className="h-5 w-5 rounded border-2 border-muted-foreground" />
                       </div>
                       <div className="flex-1">
                         <div className="font-semibold text-foreground mb-2">
-                          Recommendation Letters ({scholarship.requirements.recommendation_letters} required)
+                          Recommendation Letters ({scholarship.requirements?.recommendation_letters} required)
                         </div>
                         <p className="text-sm text-muted-foreground mb-2">
                           From teachers, counselors, mentors, or employers who can speak to your academic ability and character
@@ -805,7 +806,7 @@ const OpportunityDetail = () => {
                     </div>
                   )}
 
-                  {scholarship.requirements.transcript && (
+                  {scholarship.requirements?.transcript && (
                     <div className="flex items-start gap-3 p-4 rounded-lg border border-border">
                       <div className="shrink-0">
                         <div className="h-5 w-5 rounded border-2 border-muted-foreground" />
@@ -820,7 +821,7 @@ const OpportunityDetail = () => {
                     </div>
                   )}
 
-                  {scholarship.requirements.resume && (
+                  {scholarship.requirements?.resume && (
                     <div className="flex items-start gap-3 p-4 rounded-lg border border-border">
                       <div className="shrink-0">
                         <div className="h-5 w-5 rounded border-2 border-muted-foreground" />
@@ -835,9 +836,9 @@ const OpportunityDetail = () => {
                     </div>
                   )}
 
-                  {scholarship.requirements.other.length > 0 && (
+                  {(scholarship.requirements?.other?.length ?? 0) > 0 && (
                     <>
-                      {scholarship.requirements.other.map((req, idx) => (
+                      {scholarship.requirements?.other?.map((req, idx) => (
                         <div key={idx} className="flex items-start gap-3 p-4 rounded-lg border border-border">
                           <div className="shrink-0">
                             <div className="h-5 w-5 rounded border-2 border-muted-foreground" />
