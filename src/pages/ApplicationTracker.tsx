@@ -7,7 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { CheckCircle2, Clock, AlertCircle, XCircle, ExternalLink, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { apiService } from '@/services/api';
+import { ApplicationSubmission } from '@/types/scholarship';
 
+// Map API response to display-friendly format
 interface TrackedApplication {
   id: string;
   opportunity_name: string;
@@ -22,6 +25,24 @@ interface TrackedApplication {
   essay_drafts: number;
   notes: string;
 }
+
+const mapApiToTracked = (app: ApplicationSubmission): TrackedApplication => ({
+  id: app.application_id,
+  opportunity_name: app.scholarship_name || 'Opportunity',
+  opportunity_url: '', // Would need to be added to API response
+  organization: '', // Would need to be added to API response
+  status: app.status === 'draft' ? 'in_progress' : 
+          app.status === 'awarded' ? 'accepted' :
+          app.status === 'declined' ? 'rejected' :
+          app.status as TrackedApplication['status'],
+  deadline: app.decision_date || '',
+  started_at: app.submitted_at || '',
+  submitted_at: app.submitted_at,
+  last_updated: app.submitted_at || '',
+  documents_uploaded: app.documents?.map(d => d.file_name) || [],
+  essay_drafts: app.essays?.length || 0,
+  notes: app.notes || '',
+});
 
 const statusConfig = {
   not_started: {
@@ -69,15 +90,18 @@ export default function ApplicationTracker() {
   }, [user]);
 
   const fetchApplications = async () => {
+    if (!user?.uid) return;
+    
     try {
-      // TODO: Replace with actual API call
-      // const response = await apiService.getApplications(user.uid);
-      // setApplications(response.applications);
-      
-      // Mock data for now
-      setApplications([]);
+      // Fetch real applications from API
+      const response = await apiService.getUserApplications(user.uid);
+      // Map API response to TrackedApplication format
+      const tracked = (response.applications || []).map(mapApiToTracked);
+      setApplications(tracked);
     } catch (error) {
       console.error('Failed to fetch applications:', error);
+      // On error, show empty state (NOT mock data)
+      setApplications([]);
     } finally {
       setLoading(false);
     }
