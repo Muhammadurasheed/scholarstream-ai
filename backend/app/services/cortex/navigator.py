@@ -15,20 +15,37 @@ class Sentinel:
     Delegates mission execution to Hunter Drones (UniversalCrawlerService).
     """
     
+    """
+    COMPREHENSIVE TARGET LIST - All opportunity sources
+    These URLs are crawled with Playwright stealth to bypass anti-bot
+    """
     TARGETS = [
-        # Hackathons
+        # ======== HACKATHONS ========
         "https://devpost.com/hackathons",
         "https://mlh.io/seasons/2025/events",
         "https://dorahacks.io/hackathon",
         "https://angelhack.com/events/",
         "https://www.hackquest.io/hackathon",
-        # Bounties
+        "https://devfolio.co/hackathons",
+        "https://hackerearth.com/challenges/",
+        
+        # ======== BOUNTIES ========
         "https://immunefi.com/explore",
         "https://gitcoin.co/grants-stack/explorer",
-        # Scholarships
+        "https://hackerone.com/bug-bounty-programs",
+        "https://bugcrowd.com/programs",
+        
+        # ======== COMPETITIONS ========
+        "https://www.kaggle.com/competitions",
+        "https://codeforces.com/contests",
+        "https://topcoder.com/challenges",
+        
+        # ======== SCHOLARSHIPS ========
         "https://bold.org/scholarships/",
         "https://www.scholarships.com/financial-aid/college-scholarships/scholarship-directory",
         "https://www.fastweb.com/college-scholarships",
+        "https://www.niche.com/colleges/scholarships/",
+        "https://www.unigo.com/scholarships/all",
     ]
 
     async def patrol(self):

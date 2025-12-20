@@ -26,64 +26,29 @@ class ScraperRegistry:
         self._register_all_scrapers()
     
     def _register_all_scrapers(self):
-        """Register all available scrapers - PRODUCTION MODE"""
-        # === HACKATHON SCRAPERS ===
-        self.register(DevpostScraper())
-        self.register(MLHScraper())
+        """
+        PRODUCTION MODE: Scrapers are DISABLED.
         
-        # DoraHacks, AngelHack, HackQuest - New Titans
-        try:
-            from .hackathons.dorahacks_scraper import DoraHacksScraper
-            self.register(DoraHacksScraper())
-        except ImportError as e:
-            logger.warning(f"DoraHacks scraper not available: {e}")
-            
-        try:
-            from .hackathons.angelhack_scraper import AngelHackScraper
-            self.register(AngelHackScraper())
-        except ImportError as e:
-            logger.warning(f"AngelHack scraper not available: {e}")
-            
-        try:
-            from .hackathons.hackquest_scraper import HackQuestScraper
-            self.register(HackQuestScraper())
-        except ImportError as e:
-            logger.warning(f"HackQuest scraper not available: {e}")
+        WHY: Traditional httpx-based scrapers get blocked by Cloudflare/anti-bot systems.
         
-        # === BOUNTY SCRAPERS ===
-        self.register(Web3BountiesScraper())
+        SOLUTION: We use the CORTEX PIPELINE instead:
+        - Sentinel (proactive patrol) → crawler_service (Playwright with stealth)
+        - Raw HTML → Kafka → Gemini AI extraction → Structured opportunities
         
-        try:
-            from .bounties.gitcoin_scraper import GitcoinBountyScraper
-            self.register(GitcoinBountyScraper())
-        except ImportError as e:
-            logger.warning(f"Gitcoin bounty scraper not available: {e}")
-            
-        try:
-            from .bounties.immunefi_scraper import ImmunefiScraper
-            self.register(ImmunefiScraper())
-        except ImportError as e:
-            logger.warning(f"Immunefi scraper not available: {e}")
+        The Playwright-based UniversalCrawlerService handles:
+        - JavaScript rendering
+        - Anti-bot bypass
+        - Fingerprint randomization
+        - Human-like behavior
         
-        # === COMPETITION SCRAPERS ===
-        self.register(KaggleScraper())
-        
-        # === SCHOLARSHIP SCRAPERS ===
-        self.register(ScholarshipsScraper())
-        
-        try:
-            from .scholarships.bold_org_scraper import BoldOrgScraper
-            self.register(BoldOrgScraper())
-        except ImportError as e:
-            logger.warning(f"Bold.org scraper not available: {e}")
-            
-        try:
-            from .scholarships.fastweb_scraper import FastwebScraper
-            self.register(FastwebScraper())
-        except ImportError as e:
-            logger.warning(f"Fastweb scraper not available: {e}")
-        
-        logger.info(f"Scraper Registry: {len(self.scrapers)} scrapers registered", scrapers=list(self.scrapers.keys()))
+        See: backend/app/services/cortex/navigator.py for patrol targets
+        See: backend/app/services/crawler_service.py for Playwright implementation
+        """
+        logger.info(
+            "Scraper Registry: CORTEX MODE ACTIVE",
+            message="Using Playwright-based Sentinel patrols instead of legacy scrapers",
+            reason="Legacy httpx scrapers get blocked by Cloudflare/anti-bot systems"
+        )
     
     def register(self, scraper: BaseScraper):
         """Register a scraper with health monitoring"""
