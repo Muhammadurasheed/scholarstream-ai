@@ -16,13 +16,19 @@ class Sentinel:
     """
     
     TARGETS = [
+        # Hackathons
         "https://devpost.com/hackathons",
         "https://mlh.io/seasons/2025/events",
         "https://dorahacks.io/hackathon",
         "https://angelhack.com/events/",
-        "https://www.chegg.com/scholarships",
+        "https://www.hackquest.io/hackathon",
+        # Bounties
+        "https://immunefi.com/explore",
+        "https://gitcoin.co/grants-stack/explorer",
+        # Scholarships
         "https://bold.org/scholarships/",
-        "https://www.scholarships.com/financial-aid/college-scholarships/scholarship-directory"
+        "https://www.scholarships.com/financial-aid/college-scholarships/scholarship-directory",
+        "https://www.fastweb.com/college-scholarships",
     ]
 
     async def patrol(self):
