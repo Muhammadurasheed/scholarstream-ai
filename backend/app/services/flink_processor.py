@@ -138,9 +138,17 @@ class CortexFlinkProcessor:
         # Update state with stable ID
         self.seen_opportunities[content_id] = now
         
-        # 2. ENRICH EVENT WITH STABLE ID
+        # 2. ENRICH EVENT WITH STABLE ID & STANDARDIZE SCHEMA
         event['id'] = content_id  # Assign stable ID
         event['cortex_processed_at'] = now
+        
+        # Standardize 'name' (New Schema Compliance)
+        if 'name' not in event and 'title' in event:
+            event['name'] = event['title']
+
+        # Standardize 'source_url'
+        if 'source_url' not in event and 'url' in event:
+             event['source_url'] = event['url']
         
         # 3. WINDOW MANAGEMENT
         self._cleanup_window(now)
@@ -160,7 +168,7 @@ class CortexFlinkProcessor:
 
     def _cleanup_window(self, current_time: float):
         """Slide the window (Evict old events and stale seen entries)"""
-        # Clean processing queue
+        # Clean processing queue (only for windowed stats)
         while self.processing_queue:
             timestamp, _ = self.processing_queue[0]
             if (current_time - timestamp) > self.window_size_seconds:
@@ -168,16 +176,17 @@ class CortexFlinkProcessor:
             else:
                 break
         
-        # Clean seen_opportunities (prevent memory leak)
-        stale_ids = [
-            cid for cid, ts in self.seen_opportunities.items()
-            if (current_time - ts) > self.window_size_seconds * 2  # 2x window for safety
-        ]
-        for cid in stale_ids:
-            del self.seen_opportunities[cid]
+        # NOTE: We DO NOT evict from self.seen_opportunities anymore.
+        # This fixes the bug where persistent history was lost every 2 hours,
+        # causing 6-hour scrape intervals to re-add everything as duplicates.
+        # 100k IDs = ~5MB RAM, which is acceptable for lifetime dedup.
         
-        if stale_ids:
-            logger.debug("Evicted stale entries", count=len(stale_ids))
+        # stale_ids = [
+        #     cid for cid, ts in self.seen_opportunities.items()
+        #     if (current_time - ts) > self.window_size_seconds * 2
+        # ]
+        # if stale_ids:
+        #    logger.debug("Evicted stale entries", count=len(stale_ids))
 
     def get_stats(self) -> Dict[str, Any]:
         """Get processor statistics"""

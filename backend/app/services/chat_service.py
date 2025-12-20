@@ -181,8 +181,10 @@ If SEARCH RESULTS are provided:
 - Explain WHY they match the student's profile (e.g., "Matches your location in {profile.get('state', 'your area')}" or "Aligns with your interest in {profile.get('major', 'your major')}").
 - Mention the deadline clearly.
 
+IMPORTANT: You HAVE access to these opportunities. They are from our internal database. DO NOT say you cannot search or access external databases. Use the provided SEARCH RESULTS as your source of truth.
+
 If NO SEARCH RESULTS are found:
-- Be honest. Suggest broadening the search or checking back later.
+- Be honest that our *current database* doesn't have matches, but suggest broadening the search or checking back later.
 """
         return prompt
     

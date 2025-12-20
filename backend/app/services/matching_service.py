@@ -129,7 +129,7 @@ class OpportunityMatchingService:
         
         # Convert Scholarship to dict for personalization engine
         opp_dict = {
-            'name': opportunity.title,
+            'name': opportunity.name or opportunity.title or 'Unknown Opportunity',
             'description': opportunity.description or '',
             'organization': opportunity.organization or '',
             'tags': opportunity.tags if hasattr(opportunity, 'tags') else [],
@@ -160,19 +160,23 @@ class OpportunityMatchingService:
             opp.match_score = self.calculate_match_score(opp, user_profile)
             
             # Determine match tier
-            if opp.match_score >= 85:
-                opp.match_tier = "Excellent"
-            elif opp.match_score >= 70:
-                opp.match_tier = "Good"  
-            elif opp.match_score >= 55:
-                opp.match_tier = "Fair"
-            else:
-                opp.match_tier = "Poor"
+            opp.match_tier = self.get_match_tier(opp.match_score)
             
             # Include all opportunities (minimum 30% ensured by personalization engine)
             eligible.append(opp)
         
         return sorted(eligible, key=lambda x: x.match_score, reverse=True)
+
+    def get_match_tier(self, score: float) -> str:
+        """Convert match score to tier"""
+        if score >= 85:
+            return "Excellent"
+        elif score >= 70:
+            return "Good"  
+        elif score >= 55:
+            return "Fair"
+        else:
+            return "Poor"
     
     async def get_job_status(self, job_id: str) -> Optional[DiscoveryJobResponse]:
         """Get discovery job progress"""

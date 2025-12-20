@@ -201,9 +201,9 @@ async def startup_event():
             logger.error("🛡️ Sentinel import failed, disabling patrols", error=str(e))
             return
         
-        PATROL_INTERVAL_SECONDS = 6 * 60 * 60  # 6 hours
+        PATROL_INTERVAL_SECONDS = 30 * 60  # 30 minutes (Proactive Mode)
         
-        logger.info("🛡️ Sentinel Scheduler Started", interval_hours=PATROL_INTERVAL_SECONDS // 3600)
+        logger.info("🛡️ Sentinel Scheduler Started", interval_minutes=PATROL_INTERVAL_SECONDS // 60)
         
         while True:
             try:

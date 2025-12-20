@@ -9,8 +9,15 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     headers: {
-      "Cross-Origin-Opener-Policy": "same-origin",
-      "Cross-Origin-Embedder-Policy": "require-corp",
+      // "Cross-Origin-Opener-Policy": "same-origin",
+      // "Cross-Origin-Embedder-Policy": "require-corp",
+    },
+    proxy: {
+      "/api": {
+        target: "http://localhost:8081",
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),

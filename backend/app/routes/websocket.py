@@ -3,7 +3,7 @@ WebSocket Endpoint for Real-Time Opportunity Streaming
 Consumes enriched opportunities from Confluent Kafka and pushes matches to connected clients
 """
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, Depends
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 import json
 import asyncio
 import structlog
@@ -141,7 +141,9 @@ async def consume_kafka_stream():
                 if msg.error().code() == KafkaError._PARTITION_EOF:
                     logger.debug("Reached end of partition")
                 else:
+                    # Exponential Backoff for Connection Errors
                     logger.error("Kafka error", error=str(msg.error()))
+                    await asyncio.sleep(5.0) # Sleep to prevent log spam
                 continue
 
             try:
@@ -176,27 +178,28 @@ async def consume_kafka_stream():
                     else:
                         break
                 
-                enriched_opportunity = final_data
+                # Normalization Layer: Heal Schema Mismatches
+                final_data = normalize_opportunity(final_data)
 
                 # CRITICAL: Validate that enriched_opportunity is actually a dictionary
-                if not isinstance(enriched_opportunity, dict):
+                if not isinstance(final_data, dict):
                     logger.warning(
                         "Skipping malformed opportunity",
-                        reason="Not a dictionary after unwrapping",
-                        type=type(enriched_opportunity).__name__,
-                        preview=str(enriched_opportunity)[:100]
+                        reason="Not a dictionary after normalization",
+                        type=type(final_data).__name__,
+                        preview=str(final_data)[:100]
                     )
                     consumer.commit(asynchronous=False) # Skip poison pill
                     continue
 
                 logger.info(
                     "Received enriched opportunity",
-                    opportunity_name=enriched_opportunity.get('name', enriched_opportunity.get('title', 'Unknown')),
-                    source=enriched_opportunity.get('source', 'unknown')
+                    opportunity_name=final_data.get('name', final_data.get('title', 'Unknown')),
+                    source=final_data.get('source', 'unknown')
                 )
 
                 # Process
-                await process_and_route_opportunity(enriched_opportunity)
+                await process_and_route_opportunity(final_data)
 
                 # Commit ONLY after successful processing (or explicit skip above)
                 consumer.commit(asynchronous=False)
@@ -204,10 +207,6 @@ async def consume_kafka_stream():
             except Exception as e:
                 # Catch-all for processing errors
                 logger.error("Error processing opportunity", error=str(e), traceback=True)
-                # DECISION: Do we commit?
-                # If it's a code error (AttributeError), retrying won't help -> Commit (Skip)
-                # If it's a transient error (DB down), we should NOT commit.
-                # For now, to stabilize the infinite loop, we will COMMIT.
                 consumer.commit(asynchronous=False)
 
     except KafkaException as e:
@@ -215,6 +214,60 @@ async def consume_kafka_stream():
     finally:
         consumer.close()
         logger.info("Kafka consumer closed")
+
+
+def normalize_opportunity(data: Any) -> Dict:
+    """
+    SELF-HEALING MECHANISM
+    Ensures data conforms to OpportunitySchema before strict validation.
+    Fixes:
+    - Missing 'name' (maps from 'title')
+    - Missing 'description' (defaults to tagline or generic text)
+    - Missing 'id' (generates hash)
+    """
+    if not isinstance(data, dict):
+        return {}
+
+    # 1. Heal Name (Critical)
+    if 'name' not in data and 'title' in data:
+        data['name'] = data['title']
+    
+    # 2. Heal Description
+    if not data.get('description'):
+        # Construct a decent description from other fields if missing
+        parts = []
+        if data.get('tagline'):
+            parts.append(data['tagline'])
+        
+        parts.append(f"Organization: {data.get('organization', 'Unknown')}")
+        
+        if data.get('deadline'):
+            parts.append(f"Deadline: {data['deadline']}")
+            
+        data['description'] = " | ".join(parts) if parts else "No detailed description available."
+
+    # 3. Heal Tags (Ensure List[str])
+    if 'tags' in data:
+        tags = data['tags']
+        if isinstance(tags, list):
+            # Flatten dict tags like [{'id':1, 'name':'foo'}] -> ['foo']
+            clean_tags = []
+            for t in tags:
+                if isinstance(t, dict):
+                    clean_tags.append(t.get('name', ''))
+                elif isinstance(t, str):
+                    clean_tags.append(t)
+            data['tags'] = clean_tags
+
+    # 4. Heal ID (content hash)
+    if not data.get('id'):
+         import hashlib
+         # Generate ID from URL (preferred) or Title
+         id_source = data.get('url') or data.get('source_url') or data.get('name') or "unknown"
+         hash_object = hashlib.md5(id_source.encode())
+         data['id'] = f"gen_{hash_object.hexdigest()}"
+
+    return data
 
 
 def convert_to_scholarship(enriched_data: Dict) -> Optional[Scholarship]:
@@ -301,7 +354,8 @@ def convert_to_scholarship(enriched_data: Dict) -> Optional[Scholarship]:
 
         scholarship = Scholarship(
             id=opp_id,
-            title=name, # Mapped from name
+            name=name, # REQUIRED FIELD
+            title=name, # Optional/Legacy
             organization=enriched_data.get('organization', 'Unknown Organization'),
             amount=float(enriched_data.get('amount', 0) or 0),
             amount_display=enriched_data.get('amount_display') or f"${enriched_data.get('amount', 0):,.0f}",
@@ -359,36 +413,47 @@ async def process_and_route_opportunity(enriched_opportunity: Dict):
     for user_id in connected_users:
         user_profile = manager.user_profiles.get(user_id)
 
-        if not user_profile:
-            logger.warning("User profile not found in cache", user_id=user_id)
+        if not user_profile or not isinstance(user_profile, dict):
+            logger.warning("Invalid or missing user profile in cache", user_id=user_id)
             continue
 
-        match_score = calculate_match_score(enriched_opportunity, user_profile)
+        try:
+            match_score = calculate_match_score(enriched_opportunity, user_profile)
 
-        if match_score >= 60:
-            enriched_opportunity_with_score = enriched_opportunity.copy()
-            enriched_opportunity_with_score['match_score'] = match_score
-            enriched_opportunity_with_score['match_tier'] = get_match_tier(match_score)
-            enriched_opportunity_with_score['priority_level'] = get_priority_level(
-                enriched_opportunity,
-                match_score
-            )
+            if match_score >= 60:
+                enriched_opportunity_with_score = enriched_opportunity.copy()
+                enriched_opportunity_with_score['match_score'] = match_score
+                enriched_opportunity_with_score['match_tier'] = get_match_tier(match_score)
+                enriched_opportunity_with_score['priority_level'] = get_priority_level(
+                    enriched_opportunity,
+                    match_score
+                )
 
-            await manager.send_personal_message(
-                user_id=user_id,
-                message={
-                    'type': 'new_opportunity',
-                    'opportunity': enriched_opportunity_with_score,
-                    'timestamp': datetime.utcnow().isoformat()
-                }
-            )
+                await manager.send_personal_message(
+                    user_id=user_id,
+                    message={
+                        'type': 'new_opportunity',
+                        'opportunity': enriched_opportunity_with_score,
+                        'timestamp': datetime.utcnow().isoformat()
+                    }
+                )
 
-            logger.info(
-                "Opportunity pushed to user",
-                user_id=user_id,
-                opportunity_name=enriched_opportunity.get('name'),
-                match_score=match_score
+                logger.info(
+                    "Opportunity pushed to user",
+                    user_id=user_id,
+                    opportunity_name=enriched_opportunity.get('name'),
+                    match_score=match_score
+                )
+        except Exception as e:
+            logger.error(
+                "CRITICAL: Match calculation failed", 
+                user_id=user_id, 
+                profile_type=type(user_profile).__name__,
+                profile_preview=str(user_profile)[:100],
+                error=str(e),
+                traceback=True
             )
+            continue
 
 
 def calculate_match_score(opportunity: Dict, user_profile: Dict) -> float:
@@ -478,8 +543,11 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
 
                 elif message_type == 'update_profile':
                     updated_profile = message.get('profile', {})
-                    manager.user_profiles[user_id] = updated_profile
-                    logger.info("User profile updated in WebSocket", user_id=user_id)
+                    if isinstance(updated_profile, dict):
+                        manager.user_profiles[user_id] = updated_profile
+                        logger.info("User profile updated in WebSocket", user_id=user_id)
+                    else:
+                        logger.warning("Invalid profile update format", user_id=user_id, received_type=type(updated_profile).__name__)
 
             except asyncio.TimeoutError:
                 await websocket.send_json({

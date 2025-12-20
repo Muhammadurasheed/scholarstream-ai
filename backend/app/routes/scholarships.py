@@ -99,6 +99,47 @@ async def get_matched_scholarships(user_id: str):
         
         scholarships = await db.get_user_matched_scholarships(user_id)
         
+        # SELF-HEALING: If no matches found, trigger fresh match against cache
+        if not scholarships:
+            logger.info("No matches found in DB, triggering self-healing match", user_id=user_id)
+            all_opps = await db.get_all_scholarships()
+            if all_opps:
+                # Get user profile for matching
+                user_profile_data = await db.get_user_profile(user_id)
+                if user_profile_data and 'profile' in user_profile_data:
+                    from app.models import UserProfile
+                    # Reconstruct profile object
+                    profile = UserProfile(**user_profile_data['profile'])
+                    
+                    # Compute matches
+                    matched = matching_service._filter_and_rank(all_opps, profile)
+                    
+                    if matched:
+                        # Save matches for next time
+                        await db.save_user_matches(user_id, [s.id for s in matched])
+                        scholarships = matched
+                        logger.info("Self-healing match complete", confirmed_matches=len(scholarships))
+
+        # ALWAYS Re-Score matches to ensure personalization is fresh
+        # (Stored matches might have 0 score or old algorithm score)
+        if scholarships:
+            try:
+                user_profile_data = await db.get_user_profile(user_id)
+                if user_profile_data and 'profile' in user_profile_data:
+                    from app.models import UserProfile
+                    profile = UserProfile(**user_profile_data['profile'])
+                    
+                    # Re-calculate scores
+                    for scholarship in scholarships:
+                        score = matching_service.calculate_match_score(scholarship, profile)
+                        scholarship.match_score = score
+                        scholarship.match_tier = matching_service.get_match_tier(score)
+                    
+                    # Re-sort by score descending
+                    scholarships.sort(key=lambda x: x.match_score, reverse=True)
+            except Exception as e:
+                logger.warning("Failed to re-calculate scores on read", error=str(e))
+
         total_value = sum(s.amount for s in scholarships)
         
         return MatchedScholarshipsResponse(

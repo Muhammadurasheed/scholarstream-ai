@@ -19,8 +19,9 @@ DiscoveryStatus = Literal["idle", "processing", "completed", "failed"]
 # User Profile Models
 class UserProfile(BaseModel):
     """User profile data from onboarding"""
-    name: str
-    academic_status: str
+    """User profile data from onboarding"""
+    name: str = "Student" # Relaxed validation
+    academic_status: str = "Unknown" # Relaxed validation
     school: Optional[str] = None
     year: Optional[str] = None
     gpa: Optional[float] = Field(None, ge=0.0, le=4.0)
@@ -116,7 +117,8 @@ class OpportunitySchema(BaseModel):
     Topic: opportunity.enriched.v1
     """
     id: str = Field(..., description="Unique hash of source_url")
-    title: str
+    title: Optional[str] = None
+    name: str = Field(..., description="Opportunity Name")
     organization: Optional[str] = "Unknown Organization"
     amount: float = Field(default=0.0)
     amount_display: Optional[str] = None
@@ -128,6 +130,7 @@ class OpportunitySchema(BaseModel):
     # Intelligence Tags
     geo_tags: List[str] = Field(default_factory=list, description="['Global', 'Nigeria', 'Lagos']")
     type_tags: List[str] = Field(default_factory=list, description="['Bounty', 'Hackathon', 'Grant']")
+    tags: List[str] = Field(default_factory=list, description="Legacy tags field for compatibility")
     
     # Metadata
     source_url: str
@@ -145,6 +148,10 @@ class OpportunitySchema(BaseModel):
     
     # Raw Eligibility (for deeper checks)
     eligibility_text: Optional[str] = None
+
+    # Structured Requirements (Added for compatibility with MatchingEngine)
+    eligibility: ScholarshipEligibility = Field(default_factory=ScholarshipEligibility)
+    requirements: ScholarshipRequirements = Field(default_factory=ScholarshipRequirements)
     
     # System Metadata
     last_verified: Optional[str] = None

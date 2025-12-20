@@ -28,8 +28,27 @@ class PersonalizationEngine:
             'entrepreneurship': ['startup', 'business', 'innovation', 'venture', 'founder', 'entrepreneur'],
             'cloud computing': ['cloud', 'AWS', 'Azure', 'GCP', 'serverless', 'DevOps', 'infrastructure'],
             'ui/ux design': ['design', 'UI', 'UX', 'user experience', 'Figma', 'product design', 'interface'],
+            # Direct User Inputs
+            'ai': ['AI', 'artificial intelligence', 'machine learning', 'LLM', 'GPT'],
+            'coding': ['coding', 'software', 'programming', 'development', 'code'],
+            'python': ['python', 'django', 'flask', 'fastapi', 'pandas'],
+            'hackathons': ['hackathon', 'hack', 'build', 'competition'],
+            'software': ['software', 'engineering', 'developer', 'SaaS'],
         }
     
+    def _get_attr(self, obj: Any, attr: str, default: Any = None) -> Any:
+        """Helper to get attribute from object or key from dict"""
+        if isinstance(obj, dict):
+            return obj.get(attr, default)
+        return getattr(obj, attr, default)
+
+    def _safe_get_dict(self, data: Dict[str, Any], key: str) -> Dict[str, Any]:
+        """Safely get a nested dict, handling cases where it might be a string"""
+        val = data.get(key)
+        if isinstance(val, dict):
+            return val
+        return {}
+
     def calculate_personalized_score(
         self, 
         opportunity: Dict[str, Any], 
@@ -58,15 +77,19 @@ class PersonalizationEngine:
         academic_score = self._score_academics(opportunity, user_profile)
         score += academic_score * 0.1
         
-        logger.debug(
-            "Personalization score calculated",
-            opportunity=opportunity.get('name'),
-            interest_score=interest_score,
-            passion_score=passion_score,
-            demographic_score=demographic_score,
-            academic_score=academic_score,
-            final_score=score
-        )
+        try:
+             opp_name = opportunity.get('name') or opportunity.get('title') or 'Unknown'
+             logger.debug(
+                "Personalization score calculated",
+                opportunity=opp_name,
+                interest_score=interest_score,
+                passion_score=passion_score,
+                demographic_score=demographic_score,
+                academic_score=academic_score,
+                final_score=score
+             )
+        except Exception:
+             pass
         
         # Minimum Floor: Every opportunity gets at least 30 points 
         # to avoid showing "0% Match" for new users with empty profiles.
@@ -74,43 +97,59 @@ class PersonalizationEngine:
     
     def _score_interests(self, opp: Dict[str, Any], profile: Any) -> float:
         """Score based on user interests (0-100)"""
-        interests = getattr(profile, 'interests', None) or []
+        interests = self._get_attr(profile, 'interests') or []
         
         if not interests:
             return 50.0  # Neutral score if no interests
         
-        user_interests = [i.lower() for i in interests]
+        user_interests = [str(i).lower() for i in interests]
         opp_text = self._get_opportunity_text(opp).lower()
         
-        matches = 0
-        total_keywords = 0
+    def _score_interests(self, opp: Dict[str, Any], profile: Any) -> float:
+        """Score based on user interests (0-100)"""
+        interests = self._get_attr(profile, 'interests') or []
+        
+        if not interests:
+            return 50.0  # Neutral score if no interests
+        
+        user_interests = [str(i).lower() for i in interests]
+        opp_text = self._get_opportunity_text(opp).lower()
+        
+        satisfied_interests = 0
+        matched_details = []
         
         for interest in user_interests:
             # Get keywords for this interest
             keywords = self.interest_keywords.get(interest, [interest])
-            total_keywords += len(keywords)
             
-            # Check how many keywords match
-            for keyword in keywords:
-                if keyword.lower() in opp_text:
-                    matches += 1
+            # Check if ANY keyword matches (Interest Satisfied)
+            if any(keyword.lower() in opp_text for keyword in keywords):
+                satisfied_interests += 1
+                matched_details.append(interest)
         
-        if total_keywords == 0:
+        if not user_interests:
             return 50.0
         
-        # Calculate match rate
-        match_rate = matches / total_keywords
+        # Calculate match rate: % of User's Interests found in Opportunity
+        match_rate = satisfied_interests / len(user_interests)
         
-        # Boost score if multiple interests match
+        # Boost: If more than 50% of interests match, boost by 1.2
         if match_rate > 0.5:
             match_rate = min(match_rate * 1.2, 1.0)
+            
+        logger.debug(
+            "Interest scoring",
+            user_interests=user_interests,
+            matched=matched_details,
+            rate=match_rate
+        )
         
         return match_rate * 100
     
     def _score_passions(self, opp: Dict[str, Any], profile: Any) -> float:
         """Score based on user passions (0-100)"""
         # Passions are stored in profile.background or profile.interests
-        background = getattr(profile, 'background', None) or []
+        background = self._get_attr(profile, 'background') or []
         
         if not background:
             return 50.0
@@ -134,11 +173,11 @@ class PersonalizationEngine:
         score = 0.0
         checks = 0
         
-        eligibility = opp.get('eligibility') or {}
+        eligibility = self._safe_get_dict(opp, 'eligibility')
         
         # GPA check
         gpa_min = eligibility.get('gpa_min')
-        user_gpa = getattr(profile, 'gpa', None)
+        user_gpa = self._get_attr(profile, 'gpa')
         
         if gpa_min and user_gpa:
             checks += 1
@@ -149,7 +188,7 @@ class PersonalizationEngine:
         
         # Major check
         required_majors = eligibility.get('majors')
-        user_major = getattr(profile, 'major', None)
+        user_major = self._get_attr(profile, 'major')
         
         if required_majors and user_major:
             checks += 1
@@ -162,7 +201,7 @@ class PersonalizationEngine:
         
         # Background check
         required_backgrounds = eligibility.get('backgrounds', [])
-        user_background = getattr(profile, 'background', None) or []
+        user_background = self._get_attr(profile, 'background') or []
         
         if required_backgrounds and user_background:
             checks += 1
@@ -176,10 +215,10 @@ class PersonalizationEngine:
         score = 0.0
         
         # Academic status match
-        academic_status = getattr(profile, 'academic_status', None)
+        academic_status = self._get_attr(profile, 'academic_status')
         
         if academic_status:
-            eligibility = opp.get('eligibility') or {}
+            eligibility = self._safe_get_dict(opp, 'eligibility')
             grade_levels = eligibility.get('grade_levels', []) or eligibility.get('grades_eligible', [])
             
             if academic_status in grade_levels:
@@ -202,11 +241,10 @@ class PersonalizationEngine:
         ]
         
         # Add requirements text
-        requirements = opp.get('requirements', {})
-        if isinstance(requirements, dict):
-            skills = requirements.get('skills_needed', [])
-            if skills:
-                parts.append(' '.join(skills))
+        requirements = self._safe_get_dict(opp, 'requirements')
+        skills = requirements.get('skills_needed', [])
+        if skills:
+            parts.append(' '.join(skills))
         
         return ' '.join(parts)
 

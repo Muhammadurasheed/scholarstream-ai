@@ -104,10 +104,17 @@ class DevpostScraper(BaseScraper):
         
         try:
             title = item.get('title', 'Unknown Hackathon')
-            url = item.get('url', '')
-            if url and not url.startswith('http'):
-                url = self.base_url + url
-                
+            raw_url = item.get('url', '')
+            
+            # Smart URL Handling
+            url = raw_url
+            if raw_url and not raw_url.startswith('http'):
+                # Check if it looks like a subdomain (standard for devpost hackathons)
+                if 'devpost.com' in raw_url:
+                    url = f"https::{raw_url}" if raw_url.startswith('//') else f"https://{raw_url}"
+                else:
+                    url = self.base_url + raw_url
+            
             # Extract organization
             organization = "Unknown"
             if item.get('organization'):
@@ -123,15 +130,9 @@ class DevpostScraper(BaseScraper):
             submission_period_dates = item.get('submission_period_dates', '')
             
             # Estimate deadline
-            deadline_str = None
+            deadline = None
             urgency = 'future'
-            
-            if submission_period_dates and 'until' in submission_period_dates:
-                 # Format: "Sep 25 - Nov 15, 2024" or similar
-                 # For now, let's just use a reasonable default based on status
-                 # Parsing "Nov 15, 2024" is possible but format varies
-                 pass
-            
+
             # Fallback deadline logic
             time_left = item.get('time_left_to_submission', '')
             if time_left:
@@ -156,14 +157,12 @@ class DevpostScraper(BaseScraper):
                 'deadline': deadline,
                 'deadline_type': 'fixed',
                 'url': url,
-                'source_url': url,  # Frontend expects source_url
-                'source_type': 'devpost',  # Proper source type enum
+                'source_url': url,
+                'source_type': 'devpost',
                 'source': 'devpost',
                 'urgency': urgency,
                 'tags': item.get('themes', []) + ['Hackathon'],
-                # Logo extraction - Devpost API provides thumbnail
                 'logo_url': item.get('thumbnail_url') or item.get('organization', {}).get('logo_url', ''),
-                # Participants count from API
                 'participants_count': item.get('registrations_count', 0),
                 'eligibility': {
                     'students_only': False,
@@ -189,18 +188,29 @@ class DevpostScraper(BaseScraper):
         except Exception as e:
             logger.error(f"Error parsing API item: {e}", item_title=item.get('title'))
             return None
-            
+
     def _parse_prize(self, prize_text: str) -> tuple:
-        """Parse prize amount from text"""
+        """Parse prize amount from text, handling k/m suffixes"""
         if not prize_text:
             return 0, "$0"
         
+        text = str(prize_text).lower()
+        
+        # Check for multipliers
+        multiplier = 1
+        if 'k' in text:
+            multiplier = 1000
+        elif 'm' in text:
+            multiplier = 1000000
+            
         # Extract numbers
-        numbers = re.findall(r'\d+[,\d]*', str(prize_text))
+        numbers = re.findall(r'\d+[,\d]*\.?\d*', text)
         if numbers:
+            # Take the first number found
             amount_str = numbers[0].replace(',', '')
             try:
-                amount = int(amount_str)
+                val = float(amount_str)
+                amount = int(val * multiplier)
                 return amount, prize_text
             except:
                 pass

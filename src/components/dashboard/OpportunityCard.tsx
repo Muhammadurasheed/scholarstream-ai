@@ -150,6 +150,11 @@ export const OpportunityCard = ({
               <TypeIcon className="w-3 h-3 mr-1" />
               {typeConfig.label}
             </Badge>
+            {scholarship.source_url && (
+              <Badge variant="secondary" className="text-xs px-2 py-0 border-border/50 bg-secondary/30 text-muted-foreground/80">
+                {new URL(scholarship.source_url).hostname.replace('www.', '').split('.')[0]}
+              </Badge>
+            )}
             {isNew && (
               <Badge className="bg-success/90 text-success-foreground text-xs px-1.5 py-0">
                 NEW

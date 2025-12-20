@@ -185,7 +185,7 @@ class UniversalCrawlerService:
         
         if self.kafka_initialized:
             success = kafka_producer_manager.publish_to_stream(
-                topic=KafkaConfig.RAW_HTML_TOPIC,
+                topic=KafkaConfig.TOPIC_RAW_HTML,
                 key=url,
                 value=payload
             )

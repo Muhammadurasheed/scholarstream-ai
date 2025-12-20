@@ -18,6 +18,8 @@ class Sentinel:
     TARGETS = [
         "https://devpost.com/hackathons",
         "https://mlh.io/seasons/2025/events",
+        "https://dorahacks.io/hackathon",
+        "https://angelhack.com/events/",
         "https://www.chegg.com/scholarships",
         "https://bold.org/scholarships/",
         "https://www.scholarships.com/financial-aid/college-scholarships/scholarship-directory"
