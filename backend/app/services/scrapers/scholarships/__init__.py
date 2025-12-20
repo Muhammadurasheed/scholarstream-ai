@@ -1,1 +1,0 @@
-"""Scholarships scrapers package"""
